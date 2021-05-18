@@ -156,7 +156,7 @@ def main():
         # удалить лишние данные в стадии бодрствования
         raw_values, stages_values = remove_excess_stage_w_values(raw_values, stages_values, epochs_number)
 
-        # сохраненить данных в файл формата npz
+        # сохранить данные в файл формата npz
         save_data_to_npz(
             {
                 'x': raw_values,
