@@ -3,36 +3,27 @@ import pandas as pd
 
 from os import path, makedirs
 from shutil import rmtree
-from glob import glob
-from argparse import ArgumentParser
 from mne.io import read_raw_edf
-from typing import List
+
+from typing import List, Any
+from argparse import ArgumentParser
 
 from edf_readers import EDFHeaderReader, SleepStageEDFReader
-from data_parameters import *
+from common.file_utils import get_files_in_directory
+from common.edf_parameters import *
+from common.npz_parameters import *
 
 
 def parse_arguments():
     """
     Получить входные аргументы программы:
-        - путь к директории с иходными данными
-        - путь к директории для записи новых файлов
+        - (--input_directory) путь к директории с исходными данными
+        - (--output_directory) путь к директории для записи новых файлов
     """
     parser = ArgumentParser()
-    parser.add_argument('--input_directory', type=str, default=INPUT_DIRECTORY_PATH, help='Directory of the edf files')
-    parser.add_argument('--output_directory', type=str, default=OUTPUT_DIRECTORY_PATH, help='Directory for output')
+    parser.add_argument('--input_directory', type=str, default=EDF_DIRECTORY_PATH, help='Путь к файлам edf')
+    parser.add_argument('--output_directory', type=str, default=NPZ_DIRECTORY_PATH, help='Путь директории для записи')
     return parser.parse_args()
-
-
-def get_files_in_directory(directory_path: str, file_pattern: str) -> List[str]:
-    """
-    Получить отсортированный список всех файлов в директории, удовлетворяющих паттерну
-
-    :param directory_path: директория, из которой выбираются файлы
-    :param file_pattern: паттерн имени файла
-    :return: отсортированный список путей всех файлов
-    """
-    return sorted(glob(path.join(directory_path, file_pattern)))
 
 
 def read_edf_header(file_path: str) -> dict:
@@ -42,7 +33,7 @@ def read_edf_header(file_path: str) -> dict:
     :param file_path: путь к edf файлу
     :return: данные заголовка файла
     """
-    with open(file_path, 'r', encoding=ENCODING) as file:
+    with open(file_path, 'r', encoding=EDF_ENCODING) as file:
         return EDFHeaderReader(file).read_header()
 
 
@@ -53,7 +44,7 @@ def read_sleep_stages_from_edf(file_path: str) -> (dict, pd.DataFrame):
     :param file_path: путь к edf файлу
     :return: данные заголовка файла, записи стадий
     """
-    with open(file_path, 'r', encoding=ENCODING) as file:
+    with open(file_path, 'r', encoding=EDF_ENCODING) as file:
         return SleepStageEDFReader(file).read_header_and_records()
 
 
@@ -66,7 +57,7 @@ def select_signed_data(raw_data: pd.DataFrame, stages_data: pd.DataFrame, sampli
     :param sampling_rate: частоты выборки (частоты дискретизации ЭЭГ)
     :return: отфильтрованный массив показаний ЭЭГ, соответствующий массив стадий
     """
-    stages_values = indices = np.array([], dtype=int)
+    stages_values, indices = np.array([], dtype=int), np.array([], dtype=int)
 
     for stage_data in stages_data.itertuples(index=False):
         # пропустить данные с неизвестной стадией
@@ -85,7 +76,8 @@ def select_signed_data(raw_data: pd.DataFrame, stages_data: pd.DataFrame, sampli
     return raw_data.values[indices], stages_values
 
 
-def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, epochs_number: int) -> (np.array, np.array):
+def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, epochs_number: int) -> (
+        np.array, np.array):
     """
     Удалить излишние данные в стадии W (стадия бодрствования)
     
@@ -104,6 +96,17 @@ def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, 
     indices = np.arange(start_index, end_index + 1)
 
     return raw_values[indices], stages_values[indices]
+
+
+def create_dict_from_list(keys: List[str], values: List[Any]) -> dict:
+    """
+    Создать словать из списка
+
+    :param keys: список ключей словаря
+    :param values: список значений словаря
+    :return: словарь с ключами keys и значениями values
+    """
+    return dict(zip(keys, values))
 
 
 def save_data_to_npz(data_to_save: dict, output_directory: str, psg_filename: str):
@@ -158,14 +161,14 @@ def main():
 
         # сохранить данные в файл формата npz
         save_data_to_npz(
-            {
-                'x': raw_values,
-                'y': stages_values,
-                'sampling_rate': sampling_rate,
-                'channel_name': CHANNEL_NAME,
-                "header_raw": header_raw,
-                "header_stages": header_stages,
-            },
+            create_dict_from_list(NPZ_KEYS, [
+                raw_values,
+                stages_values,
+                sampling_rate,
+                CHANNEL_NAME,
+                header_raw,
+                header_stages
+            ]),
             args.output_directory,
             path.basename(psg_file)
         )

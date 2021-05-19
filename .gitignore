@@ -2,6 +2,7 @@
 .idea/
 data_edf/
 data_npz/
+models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,10 +1,10 @@
-import datetime
 import re
 
 import numpy as np
 import pandas as pd
 
 from typing import List, Callable
+from datetime import datetime
 
 HEADER_START = '0       '
 
@@ -49,8 +49,8 @@ class EDFHeaderReader:
         (day, month, year) = [int(x) for x in self.file.read(8).split('.')]
         (hour, minute, sec) = [int(x) for x in self.file.read(8).split('.')]
 
-        year += 2000 if datetime.datetime.today().year - 2000 >= year else 1900
-        header['date'] = str(datetime.datetime(year, month, day, hour, minute, sec))
+        year += 2000 if datetime.today().year - 2000 >= year else 1900
+        header['date'] = str(datetime(year, month, day, hour, minute, sec))
 
         # размер заголовка
         header_bytes_num = int(self.file.read(8))
