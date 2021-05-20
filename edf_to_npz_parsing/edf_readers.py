@@ -6,17 +6,15 @@ import pandas as pd
 from typing import List, Callable
 from datetime import datetime
 
-HEADER_START = '0       '
-
-EDF_PLUS_C = 'EDF+C'
-EDF_PLUS_D = 'EDF+D'
-
-EVENT_CHANNEL = 'EDF Annotations'
+from edf_header_keys import *
 
 
 class EDFHeaderReader:
     def __init__(self, file):
-        self.file = file
+        self._file = file
+        self.__header_start = '0       '
+        self.__edf_plus_c = 'EDF+C'
+        self.__edf_plus_d = 'EDF+D'
 
     def __read_list(self, item_bytes: int, size: int, function: Callable) -> list:
         """
@@ -27,7 +25,7 @@ class EDFHeaderReader:
         :param function: функция обработки каждого элемента
         :return: список обработанных данных
         """
-        return [function(self.file.read(item_bytes)) for n in range(size)]
+        return [function(self._file.read(item_bytes)) for n in range(size)]
 
     def __read_header(self) -> dict:
         """
@@ -36,47 +34,47 @@ class EDFHeaderReader:
         :return: объект данных заголовка
         """
         # убедиться, что указатель стоит в начале файла
-        assert self.file.tell() == 0
-        assert self.file.read(8) == HEADER_START
+        assert self._file.tell() == 0
+        assert self._file.read(8) == self.__header_start
 
         # данные человека и записи ЭЭГ
         header = {
-            'local_subject_data': self.file.read(80).strip(),
-            'local_recording_data': self.file.read(80).strip()
+            LOCAL_SUBJECT_DATA_KEY: self._file.read(80).strip(),
+            LOCAL_RECORDING_DATA_KEY: self._file.read(80).strip()
         }
 
         # выделить дату записи
-        (day, month, year) = [int(x) for x in self.file.read(8).split('.')]
-        (hour, minute, sec) = [int(x) for x in self.file.read(8).split('.')]
+        (day, month, year) = [int(x) for x in self._file.read(8).split('.')]
+        (hour, minute, sec) = [int(x) for x in self._file.read(8).split('.')]
 
         year += 2000 if datetime.today().year - 2000 >= year else 1900
-        header['date'] = str(datetime(year, month, day, hour, minute, sec))
+        header[DATE_KEY] = str(datetime(year, month, day, hour, minute, sec))
 
         # размер заголовка
-        header_bytes_num = int(self.file.read(8))
+        header_bytes_num = int(self._file.read(8))
 
         # тип edf файла
-        subtype = self.file.read(44)[:5]
-        header['is_EDF+'] = subtype in [EDF_PLUS_C, EDF_PLUS_D]
-        header['contiguous'] = subtype != EDF_PLUS_D
+        subtype = self._file.read(44)[:5]
+        header[IS_EDF_PLUS_KEY] = subtype in [self.__edf_plus_c, self.__edf_plus_d]
+        header[IS_CONTIGUOUS_KEY] = subtype != self.__edf_plus_d
 
         # данные записей (показаний)
-        header['records_num'] = int(self.file.read(8))
-        header['record_length'] = float(self.file.read(8))
-        header['channels_num'] = channels_num = int(self.file.read(4))
+        header[RECORDS_NUM_KEY] = int(self._file.read(8))
+        header[RECORD_LENGTH_KEY] = float(self._file.read(8))
+        header[CHANNELS_NUM_KEY] = channels_num = int(self._file.read(4))
 
-        header['channels'] = self.__read_list(item_bytes=16, size=channels_num, function=lambda x: x.strip())
-        header['transducer'] = self.__read_list(item_bytes=80, size=channels_num, function=lambda x: x.strip())
-        header['units'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: x.strip())
-        header['physical_min'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
-        header['physical_max'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
-        header['digital_min'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
-        header['digital_max'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
-        header['pre_filtration'] = self.__read_list(item_bytes=80, size=channels_num, function=lambda x: x.strip())
-        header['samples_per_record'] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: int(x))
+        header[CHANNELS_KEY] = self.__read_list(item_bytes=16, size=channels_num, function=lambda x: x.strip())
+        header[TRANSDUCER_KEY] = self.__read_list(item_bytes=80, size=channels_num, function=lambda x: x.strip())
+        header[UNITS_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: x.strip())
+        header[PHYSICAL_MIN_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
+        header[PHYSICAL_MAX_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
+        header[DIGITAL_MIN_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
+        header[DIGITAL_MAX_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: float(x))
+        header[PRE_FILTRATION_KEY] = self.__read_list(item_bytes=80, size=channels_num, function=lambda x: x.strip())
+        header[SAMPLES_PER_RECORD_KEY] = self.__read_list(item_bytes=8, size=channels_num, function=lambda x: int(x))
 
         # убедиться, что считаны все данные заголовка (учитывая, что должно остаться указанное количество записей)
-        assert self.file.tell() == header_bytes_num - 32 * channels_num
+        assert self._file.tell() == header_bytes_num - 32 * channels_num
         return header
 
     def read_header(self) -> dict:
@@ -86,18 +84,25 @@ class EDFHeaderReader:
         header = self.__read_header()
 
         # убедиться, что данные корректны и максимальные значения не меньше минмальных
-        assert np.all(np.asarray(header['physical_max']) - np.asarray(header['physical_min']) >= 0)
-        assert np.all(np.asarray(header['digital_max']) - np.asarray(header['digital_min']) >= 0)
+        assert np.all(np.asarray(header[PHYSICAL_MAX_KEY]) - np.asarray(header[PHYSICAL_MIN_KEY]) >= 0)
+        assert np.all(np.asarray(header[DIGITAL_MAX_KEY]) - np.asarray(header[DIGITAL_MIN_KEY]) >= 0)
 
         return header
 
 
-class SleepStageEDFReader:
+class SleepStageEDFReader(EDFHeaderReader):
     def __init__(self, file):
-        self.__header_reader = EDFHeaderReader(file)
+        super().__init__(file)
+        self.__event_channel = 'EDF Annotations'
 
     @classmethod
     def __parse_tal_item(cls, stage: str) -> dict:
+        """
+        Получить кортеж (onset, duration, annotation)
+
+        :param stage: строка данных стадии
+        :return: кортеж (onset, duration, annotation)
+        """
         stage_data = re.split('[\x15\x14]', stage)
         return {
             'onset': int(stage_data[0]),
@@ -129,7 +134,7 @@ class SleepStageEDFReader:
         """
         stages_records = []
         for num in samples_per_record:
-            samples = self.__header_reader.file.read(num * 2)
+            samples = self._file.read(num * 2)
             if len(samples) != num * 2:
                 break
             stages_records.append(samples)
@@ -146,7 +151,7 @@ class SleepStageEDFReader:
         """
         events = []
         for (i, record) in enumerate(stages_records):
-            if channels[i] == EVENT_CHANNEL:
+            if channels[i] == self.__event_channel:
                 events.extend(self.__parse_tal(record))
 
         return pd.DataFrame(events)
@@ -157,7 +162,7 @@ class SleepStageEDFReader:
 
         :return: словарь данных заголовка, DataFrame из кортежей (onset, duration, annotation)
         """
-        header = self.__header_reader.read_header()
-        records = self.__convert_stages_records(header['channels'],
-                                                self.__read_raw_records(header['samples_per_record']))
+        header = self.read_header()
+        records = self.__convert_stages_records(header[CHANNELS_KEY],
+                                                self.__read_raw_records(header[SAMPLES_PER_RECORD_KEY]))
         return header, records

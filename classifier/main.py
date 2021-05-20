@@ -91,12 +91,13 @@ def data_to_generator(data: dict, count: int = 10, chunk_size: int = CHUNK_SIZE)
 
         for i in range(count):
             idx = choice(range(size))
-
             raw_values = chosen_data[RAW_VALUES_KEY][idx:idx + chunk_size]
-            raw_values = np.expand_dims(raw_values, 0)
-            raw_values = rescale_and_clip_array(raw_values)
-
             stage_values = chosen_data[STAGE_VALUES_KEY][idx:idx + chunk_size]
+
+            # увеличить размерность вектора и масштабировать его значения
+            raw_values = prepare_raw_values_for_model(raw_values)
+
+            # транспонировать вектор и увеличить размерность на 1
             stage_values = np.expand_dims(stage_values, -1)
             stage_values = np.expand_dims(stage_values, 0)
 
@@ -131,9 +132,9 @@ def split_into_chunks(data: Sized, chunk_size: int = CHUNK_SIZE) -> list:
     return [data[idx:idx + chunk_size] for idx in range(0, len(data), chunk_size)]
 
 
-def prepare_array_for_prediction(array: np.array):
+def prepare_raw_values_for_model(array: np.array):
     """
-    Подготовить массив к предсказанию:
+    Подготовить массив к обработке моделью:
         - изменить размерность
         - масштабировать
         - исключить лишние значения
@@ -143,6 +144,7 @@ def prepare_array_for_prediction(array: np.array):
     """
     assert len(array.shape) <= 4
 
+    # увеличивать размерность на 1, пока не достигнет 4
     while len(array.shape) != 4:
         array = np.expand_dims(array, 0)
 
@@ -176,7 +178,7 @@ def predict_stages(model: Functional, test_data: dict) -> (list, list):
         assert len(raw_values) == len(stage_values)
 
         for chunk in split_into_chunks(range(len(raw_values))):
-            raw_values_chunk = prepare_array_for_prediction(raw_values[chunk.start:chunk.stop])
+            raw_values_chunk = prepare_raw_values_for_model(raw_values[chunk.start:chunk.stop])
 
             true_stages += convert_array_to_1d_list(stage_values[chunk.start:chunk.stop])
             predicted_stages += convert_array_to_1d_list(model.predict(raw_values_chunk).argmax(axis=-1))
