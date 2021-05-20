@@ -187,17 +187,21 @@ def predict_stages(model: Functional, test_data: dict) -> (list, list):
 def main():
     args = parse_arguments()
 
+    # получить пути всех файлов данных и разделить их на данные для обучения, тестирования и валидации
     npz_files = get_files_in_directory(args.input_directory, NPZ_FILE_PATTERN)
     train_files, test_files, validation_files = train_test_validation_split(npz_files)
 
+    # загрузить данные из файлов
     train_data, test_data, validation_data = (
         load_npz_files(train_files),
         load_npz_files(test_files),
         load_npz_files(validation_files)
     )
 
+    # создать экземпляр модели сверточной нейронной сети
     model = ModelCNN(STAGES_TYPES_NUMBER).generate_cnn_model()
 
+    # обучить модель, если передан соответствующий параметр
     if args.do_fit:
         model.fit(
             data_to_generator(train_data),
@@ -208,10 +212,13 @@ def main():
             validation_steps=300,
             callbacks=generate_model_callbacks(args.model_file_path)
         )
+    # загрузить модель из файла
     model.load_weights(args.model_file_path)
 
+    # предсказать стадии на основе тестовых данных
     true_stages, predicted_stages = predict_stages(model, test_data)
 
+    # оценить предсказание
     f1 = f1_score(true_stages, predicted_stages, average='macro')
     accuracy = accuracy_score(true_stages, predicted_stages)
 

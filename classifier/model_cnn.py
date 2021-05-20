@@ -4,22 +4,29 @@ from tensorflow.python.keras.layers import Input, Convolution1D, MaxPool1D, Spat
 
 
 class ModelCNN:
-    def __init__(self, classes_number):
-        self.__kernel_size = 3
+    def __init__(self, classes_number, kernel_size: int = 3, pool_size: int = 2, dropout_rate: int = 0.01):
+        self.__classes_number = classes_number
+        self.__kernel_size = kernel_size
+        self.__pool_size = pool_size
+        self.__dropout_rate = dropout_rate
+
         self.__padding_valid = 'valid'
         self.__padding_same = 'same'
-        self.__dropout_rate = 0.01
         self.__metrics = ['acc']
-        self.__classes_number = classes_number
 
     def __generate_base_model(self):
         """
         Сгенерировать основную (базовую) модель
 
+        Над исходным вектором дважды применяется сверточный слой.
+        После этого происходит максимальное объединение в пул и отсеивание.
+        Весь процесс повторяется 4 раза.
+
         :return: основная модель
         """
         sequence_input = Input(shape=(3000, 1))
 
+        # дважды применить сверточный слой
         sequence = Convolution1D(filters=32,
                                  kernel_size=self.__kernel_size,
                                  padding=self.__padding_valid,
@@ -30,8 +37,11 @@ class ModelCNN:
                                  activation=activations.relu)(sequence)
 
         for filters in [32, 32, 256]:
-            sequence = MaxPool1D(pool_size=2)(sequence)
+            # применить слои максимального объедининеия в пул и отсеивания
+            sequence = MaxPool1D(pool_size=self.__pool_size)(sequence)
             sequence = SpatialDropout1D(rate=self.__dropout_rate)(sequence)
+
+            # повторно дважды применить сверточный слой
             sequence = Convolution1D(filters=filters,
                                      kernel_size=self.__kernel_size,
                                      padding=self.__padding_valid,
@@ -44,10 +54,14 @@ class ModelCNN:
         sequence = GlobalMaxPool1D()(sequence)
         sequence = Dropout(rate=self.__dropout_rate)(sequence)
 
-        model = models.Model(inputs=sequence_input,
-                             outputs=Dropout(rate=self.__dropout_rate)(Dense(units=64,
-                                                                             activation=activations.relu)(sequence)))
+        # примененить полносвязный слой
+        sequence = Dense(units=64, activation=activations.relu)(sequence)
 
+        # применить последнее отбрасывание и сгенерировать модель
+        model = models.Model(inputs=sequence_input,
+                             outputs=Dropout(rate=self.__dropout_rate)(sequence))
+
+        # настроить модель для обучения
         model.compile(optimizer=optimizers.Adam(),
                       loss=losses.sparse_categorical_crossentropy,
                       metrics=self.__metrics)
@@ -57,28 +71,36 @@ class ModelCNN:
         """
         Сгенерировать модель сверточной нейронной сети
 
+        Над вектором, полученным из базовой модели, два раза применяется сверточный слой вместе с отбрасываем.
+        Затем полученный вектор подается на еще один сверточный слой.
+
         :return: модель сверточной нейронной сети
         """
         sequence_input = Input(shape=(None, 3000, 1))
 
+        # применить сверточный слой и отбрасывание [1]
         sequence = TimeDistributed(self.__generate_base_model())(sequence_input)
         sequence = Convolution1D(filters=128,
                                  kernel_size=self.__kernel_size,
                                  padding=self.__padding_same,
                                  activation=activations.relu)(sequence)
         sequence = SpatialDropout1D(rate=self.__dropout_rate)(sequence)
+
+        # применить сверточный слой и отбрасывание [2]
         sequence = Convolution1D(filters=128,
                                  kernel_size=self.__kernel_size,
                                  padding=self.__padding_same,
                                  activation=activations.relu)(sequence)
-        sequence = Dropout(rate=self.__dropout_rate)(sequence)  # 0.05
+        sequence = Dropout(rate=self.__dropout_rate)(sequence)
 
+        # примененить последний сверточный слой и сгенерировать модель
         model = models.Model(inputs=sequence_input,
                              outputs=Convolution1D(filters=self.__classes_number,
                                                    kernel_size=self.__kernel_size,
                                                    padding=self.__padding_same,
                                                    activation=activations.softmax)(sequence))
 
+        # настроить модель для обучения
         model.compile(optimizer=optimizers.Adam(),
                       loss=losses.sparse_categorical_crossentropy,
                       metrics=self.__metrics)
