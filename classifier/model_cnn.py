@@ -2,16 +2,15 @@ from tensorflow.keras import activations, models, optimizers, losses
 from tensorflow.python.keras.layers import Input, Convolution1D, MaxPool1D, SpatialDropout1D, GlobalMaxPool1D, \
     Dropout, Dense, TimeDistributed
 
-from common.edf_parameters import STAGES_TYPES_COUNT
-
 
 class ModelCNN:
-    def __init__(self):
+    def __init__(self, classes_number):
         self.__kernel_size = 3
         self.__padding_valid = 'valid'
         self.__padding_same = 'same'
         self.__dropout_rate = 0.01
         self.__metrics = ['acc']
+        self.__classes_number = classes_number
 
     def __generate_base_model(self):
         """
@@ -75,7 +74,7 @@ class ModelCNN:
         sequence = Dropout(rate=self.__dropout_rate)(sequence)  # 0.05
 
         model = models.Model(inputs=sequence_input,
-                             outputs=Convolution1D(filters=STAGES_TYPES_COUNT,
+                             outputs=Convolution1D(filters=self.__classes_number,
                                                    kernel_size=self.__kernel_size,
                                                    padding=self.__padding_same,
                                                    activation=activations.softmax)(sequence))

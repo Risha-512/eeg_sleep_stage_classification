@@ -15,7 +15,7 @@ EPOCH_SIZE = 30
 
 W, N1, N2, N3, REM, UNKNOWN = 0, 1, 2, 3, 4, 5
 
-STAGES_TYPES_COUNT = 5
+STAGES_TYPES_NUMBER = 5
 
 STAGES_TYPES = {
     'Sleep stage W': W,

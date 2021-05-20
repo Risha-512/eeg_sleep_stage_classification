@@ -10,9 +10,10 @@ from argparse import ArgumentParser
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from tensorflow.python.keras.engine.functional import Functional
 
-from models_generation import ModelCNN
+from model_cnn import ModelCNN
 from common.file_utils import *
 from common.npz_parameters import *
+from common.edf_parameters import STAGES_TYPES_NUMBER
 
 MODEL_FILE_PATH = '..\\models\\model_(0_8__0_87).h5'
 
@@ -195,7 +196,7 @@ def main():
         load_npz_files(validation_files)
     )
 
-    model = ModelCNN().generate_cnn_model()
+    model = ModelCNN(STAGES_TYPES_NUMBER).generate_cnn_model()
 
     if args.do_fit:
         model.fit(
