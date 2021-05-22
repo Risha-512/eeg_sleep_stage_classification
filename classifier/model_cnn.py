@@ -4,7 +4,7 @@ from tensorflow.python.keras.layers import Input, Convolution1D, MaxPool1D, Spat
 
 
 class ModelCNN:
-    def __init__(self, classes_number, kernel_size: int = 3, pool_size: int = 2, dropout_rate: int = 0.01):
+    def __init__(self, classes_number, kernel_size: int = 3, pool_size: int = 2, dropout_rate: float = 0.01):
         self.__classes_number = classes_number
         self.__kernel_size = kernel_size
         self.__pool_size = pool_size

@@ -2,7 +2,6 @@ import numpy as np
 
 from random import choice
 from progressbar import progressbar
-from sklearn.metrics import f1_score, accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
 from typing import Generator, Sized
@@ -11,6 +10,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLRO
 from tensorflow.python.keras.engine.functional import Functional
 
 from model_cnn import ModelCNN
+from statistical_report import show_classification_report, plot_comparing_graph
 from common.file_utils import *
 from common.npz_parameters import *
 from common.edf_parameters import STAGES_TYPES_NUMBER
@@ -161,7 +161,7 @@ def convert_array_to_1d_list(array: np.array) -> list:
     return array.ravel().tolist()
 
 
-def predict_stages(model: Functional, test_data: dict) -> (list, list):
+def predict_stages(model: Functional, test_data: dict) -> (list, list, list):
     """
     Предсказать стадии на основе тестовых данных
 
@@ -169,7 +169,7 @@ def predict_stages(model: Functional, test_data: dict) -> (list, list):
     :param test_data: тестовые данные, на основе которых делается предсказание
     :return: список верных данных и список соответствующих предсказанных данных
     """
-    true_stages, predicted_stages = [], []
+    raw_values_1d, stage_values_1d, predicted_stages = [], [], []
 
     for test_data_key in progressbar(test_data):
         raw_values = test_data[test_data_key][RAW_VALUES_KEY]
@@ -180,17 +180,18 @@ def predict_stages(model: Functional, test_data: dict) -> (list, list):
         for chunk in split_into_chunks(range(len(raw_values))):
             raw_values_chunk = prepare_raw_values_for_model(raw_values[chunk.start:chunk.stop])
 
-            true_stages += convert_array_to_1d_list(stage_values[chunk.start:chunk.stop])
+            raw_values_1d += convert_array_to_1d_list(raw_values_chunk)
+            stage_values_1d += convert_array_to_1d_list(stage_values[chunk.start:chunk.stop])
             predicted_stages += convert_array_to_1d_list(model.predict(raw_values_chunk).argmax(axis=-1))
 
-    return true_stages, predicted_stages
+    return raw_values_1d, stage_values_1d, predicted_stages
 
 
 def main():
     args = parse_arguments()
 
     # получить пути всех файлов данных и разделить их на данные для обучения, тестирования и валидации
-    npz_files = get_files_in_directory(args.input_directory, NPZ_FILE_PATTERN)
+    npz_files = get_files_in_directory(args.input_directory, NPZ_FILE_PATTERN)[:39]
     train_files, test_files, validation_files = train_test_validation_split(npz_files)
 
     # загрузить данные из файлов
@@ -218,15 +219,24 @@ def main():
     model.load_weights(args.model_file_path)
 
     # предсказать стадии на основе тестовых данных
-    true_stages, predicted_stages = predict_stages(model, test_data)
+    raw_values, stage_values, predicted_stages = predict_stages(model, test_data)
 
     # оценить предсказание
-    f1 = f1_score(true_stages, predicted_stages, average='macro')
-    accuracy = accuracy_score(true_stages, predicted_stages)
+    show_classification_report(stage_values, predicted_stages)
 
-    print(f'f1 score: {f1}')
-    print(f'Accuracy score: {accuracy}')
-    print(f'Classification report:\n{classification_report(true_stages, predicted_stages)}')
+    plt_len = 700
+    plot_comparing_graph(
+        raw_values[:plt_len],
+        stage_values[:plt_len],
+        predicted_stages[:plt_len]
+    )
+
+    # for chunk in split_into_chunks(range(len(raw_values)), chunk_size=plt_len):
+    #     plot_comparing_graph(
+    #         raw_values[chunk.start:chunk.stop],
+    #         stage_values[chunk.start:chunk.stop],
+    #         predicted_stages[chunk.start:chunk.stop]
+    #     )
 
 
 if __name__ == '__main__':
