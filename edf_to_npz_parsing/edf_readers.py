@@ -1,16 +1,17 @@
 import re
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
-from typing import List, Callable
+from typing import List, Callable, TextIO
 from datetime import datetime
 
 from edf_header_keys import *
 
 
 class EDFHeaderReader:
-    def __init__(self, file):
+    def __init__(self, file: TextIO):
         self._file = file
         self.__header_start = '0       '
         self.__edf_plus_c = 'EDF+C'
@@ -60,7 +61,7 @@ class EDFHeaderReader:
 
         # данные записей (показаний)
         header[RECORDS_NUM_KEY] = int(self._file.read(8))
-        header[RECORD_LENGTH_KEY] = float(self._file.read(8))
+        header[RECORD_DURATION] = float(self._file.read(8))
         header[CHANNELS_NUM_KEY] = channels_num = int(self._file.read(4))
 
         header[CHANNELS_KEY] = self.__read_list(item_bytes=16, size=channels_num, function=lambda x: x.strip())
@@ -90,8 +91,14 @@ class EDFHeaderReader:
         return header
 
 
+@dataclass
+class EDFData:
+    header: dict
+    records: pd.DataFrame
+
+
 class SleepStageEDFReader(EDFHeaderReader):
-    def __init__(self, file):
+    def __init__(self, file: TextIO):
         super().__init__(file)
         self.__event_channel = 'EDF Annotations'
 
@@ -156,7 +163,7 @@ class SleepStageEDFReader(EDFHeaderReader):
 
         return pd.DataFrame(events)
 
-    def read_header_and_records(self) -> (dict, pd.DataFrame):
+    def read_header_and_records(self) -> EDFData:
         """
         Считать заголовок и записи стадий в виде DataFrame (onset, duration, annotation)
 
@@ -165,4 +172,4 @@ class SleepStageEDFReader(EDFHeaderReader):
         header = self.read_header()
         records = self.__convert_stages_records(header[CHANNELS_KEY],
                                                 self.__read_raw_records(header[SAMPLES_PER_RECORD_KEY]))
-        return header, records
+        return EDFData(header, records)

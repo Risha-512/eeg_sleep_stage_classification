@@ -1,4 +1,6 @@
-NPZ_DIRECTORY_PATH = '..\\data_npz'
+from os import path, pardir
+
+NPZ_DIRECTORY_PATH = path.join(pardir, 'data_npz')
 
 # параметры файлов
 NPZ_FILE_PATTERN = '*.npz'

@@ -1,15 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from os import path, makedirs
-from shutil import rmtree
+from os import path
 from mne.io import read_raw_edf
+from dataclasses import dataclass
 
-from typing import List, Any
 from argparse import ArgumentParser
 
-from edf_readers import EDFHeaderReader, SleepStageEDFReader
-from common.file_utils import get_files_in_directory
+from edf_readers import EDFHeaderReader, SleepStageEDFReader, EDFData
+from common.file_utils import *
 from common.edf_parameters import *
 from common.npz_parameters import *
 
@@ -37,7 +36,7 @@ def read_edf_header(file_path: str) -> dict:
         return EDFHeaderReader(file).read_header()
 
 
-def read_sleep_stages_from_edf(file_path: str) -> (dict, pd.DataFrame):
+def read_sleep_stages_from_edf(file_path: str) -> EDFData:
     """
     Считать данные (заголовок и записи стадий) стадий сна с edf файла
 
@@ -48,7 +47,13 @@ def read_sleep_stages_from_edf(file_path: str) -> (dict, pd.DataFrame):
         return SleepStageEDFReader(file).read_header_and_records()
 
 
-def select_signed_data(raw_data: pd.DataFrame, stages_data: pd.DataFrame, sampling_rate: int) -> (np.array, np.array):
+@dataclass
+class RawStageData:
+    raw_values: np.array
+    stage_values: np.array
+
+
+def select_signed_data(raw_data: pd.DataFrame, stages_data: pd.DataFrame, sampling_rate: int) -> RawStageData:
     """
     Выбрать данные, у которых известны соответствующие им стадии
 
@@ -61,23 +66,22 @@ def select_signed_data(raw_data: pd.DataFrame, stages_data: pd.DataFrame, sampli
 
     for stage_data in stages_data.itertuples(index=False):
         # пропустить данные с неизвестной стадией
-        if STAGES_TYPES[stage_data.annotation] == UNKNOWN:
+        if STAGE_ANNOTATIONS[stage_data.annotation] == UNKNOWN:
             continue
 
         # найти длительность эпохи и добавить стадии
         epoch_duration = int(stage_data.duration / EPOCH_SIZE)
         stages_values = np.append(stages_values,
-                                  np.ones(epoch_duration, dtype=int) * STAGES_TYPES[stage_data.annotation])
+                                  np.ones(epoch_duration, dtype=int) * STAGE_ANNOTATIONS[stage_data.annotation])
 
         # добавить индексы данных текущей итерации
         indices = np.append(indices, stage_data.onset * sampling_rate + np.arange(stage_data.duration * sampling_rate))
 
     # оставить только данные с известными стадиями
-    return raw_data.values[indices], stages_values
+    return RawStageData(raw_data.values[indices], stages_values)
 
 
-def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, epochs_number: int) -> (
-        np.array, np.array):
+def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, epochs_number: int) -> RawStageData:
     """
     Удалить излишние данные в стадии W (стадия бодрствования)
     
@@ -95,39 +99,23 @@ def remove_excess_stage_w_values(raw_values: np.array, stages_values: np.array, 
 
     indices = np.arange(start_index, end_index + 1)
 
-    return raw_values[indices], stages_values[indices]
+    return RawStageData(raw_values[indices], stages_values[indices])
 
 
-def create_dict_from_list(keys: List[str], values: List[Any]) -> dict:
-    """
-    Создать словать из списка
-
-    :param keys: список ключей словаря
-    :param values: список значений словаря
-    :return: словарь с ключами keys и значениями values
-    """
-    return dict(zip(keys, values))
-
-
-def save_data_to_npz(data_to_save: dict, output_directory: str, psg_filename: str):
+def save_data_to_npz(data_to_save: dict, output_directory: str, filename: str):
     """
     Сохранить данные в файл формата npz (numpy файл)
 
     :param data_to_save: данные для записи в файл
     :param output_directory: директория, в которую будут сохраняться файлы
-    :param psg_filename: имя исходного файла ПСГ (edf файл с показаниями ЭЭГ)
+    :param filename: имя исходного файла
     """
-    npz_filename = psg_filename.replace(PSG_FILE_EXTENSION, NPZ_FILE_EXTENSION)
-    np.savez(path.join(output_directory, npz_filename), **data_to_save)
+    np.savez(path.join(output_directory, filename + NPZ_FILE_EXTENSION), **data_to_save)
 
 
 def main():
     args = parse_arguments()
-
-    # создать директорию для выходных данных (очистить, если существует)
-    if path.exists(args.output_directory):
-        rmtree(args.output_directory)
-    makedirs(args.output_directory)
+    create_directory(args.output_directory)
 
     # получить пути всех edf файлов
     psg_files = get_files_in_directory(args.input_directory, PSG_FILE_PATTERN)
@@ -137,40 +125,39 @@ def main():
         # считать данные ЭЭГ
         raw_data = read_raw_edf(psg_file, preload=True, stim_channel=None)
         sampling_rate = int(raw_data.info[SAMPLING_RATE_INFO_KEY])
-
-        raw_data = raw_data.to_data_frame()[CHANNEL_NAME].to_frame()
+        raw_records = raw_data.to_data_frame()[CHANNEL_NAME].to_frame()
 
         # считать заголовки к данным ЭЭГ и данным стадий
         header_raw = read_edf_header(psg_file)
-        header_stages, stages_data = read_sleep_stages_from_edf(hyp_file)
+        stage_data = read_sleep_stages_from_edf(hyp_file)
 
         # выбрать данные, имеющие известные стадии
-        raw_values, stages_values = select_signed_data(raw_data, stages_data, sampling_rate)
+        data = select_signed_data(raw_records, stage_data.records, sampling_rate)
 
         # вычислить количество эпох
-        epochs_number = int(len(raw_values) / (EPOCH_SIZE * sampling_rate))
+        epochs_number = int(len(data.raw_values) / (EPOCH_SIZE * sampling_rate))
 
         # выделить эпохи и их стадии
-        raw_values = np.asarray(np.split(raw_values, epochs_number)).astype(np.float32)
+        data.raw_values = np.asarray(np.split(data.raw_values, epochs_number)).astype(np.float32)
 
         # проверить, что количество данных эквивалентно
-        assert len(raw_values) == len(stages_values) == epochs_number
+        assert len(data.raw_values) == len(data.stage_values) == epochs_number
 
         # удалить лишние данные в стадии бодрствования
-        raw_values, stages_values = remove_excess_stage_w_values(raw_values, stages_values, epochs_number)
+        data = remove_excess_stage_w_values(data.raw_values, data.stage_values, epochs_number)
 
         # сохранить данные в файл формата npz
         save_data_to_npz(
-            create_dict_from_list(NPZ_KEYS, [
-                raw_values,
-                stages_values,
+            dict(zip(NPZ_KEYS, [
+                data.raw_values,
+                data.stage_values,
                 sampling_rate,
                 CHANNEL_NAME,
                 header_raw,
-                header_stages
-            ]),
+                stage_data.header
+            ])),
             args.output_directory,
-            path.basename(psg_file)
+            get_file_name_from_path(psg_file)
         )
 
 
