@@ -53,7 +53,7 @@ class ModelCNN:
 
         for filters in [32, 32, 256]:
             # применить слои максимального объедининеия в пул и отсеивания
-            sequence = MaxPool1D(pool_size=self.__pool_size)(sequence)
+            sequence = MaxPool1D(pool_size=self.__pool_size, padding=self.__padding_valid)(sequence)
             sequence = SpatialDropout1D(rate=self.__dropout_rate)(sequence)
 
             # повторно дважды применить сверточный слой

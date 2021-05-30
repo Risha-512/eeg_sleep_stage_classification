@@ -9,6 +9,13 @@ from common.file_utils import write_to_text_file
 
 
 def save_classification_report(stage_values: np.array, predicted_stages: np.array, path_to_save: str):
+    """
+    Сохранить отчет о классификации в файл
+
+    :param stage_values: истинные значения стадия
+    :param predicted_stages: спрогнозированные стадии
+    :param path_to_save: путь для сохранения отчета
+    """
     f1 = f1_score(stage_values, predicted_stages, average='macro')
     accuracy = accuracy_score(stage_values, predicted_stages)
     jaccard = jaccard_score(stage_values, predicted_stages, average='macro')
@@ -23,6 +30,13 @@ def save_classification_report(stage_values: np.array, predicted_stages: np.arra
 
 
 def save_comparing_plot(stage_values: np.array, predicted_stages: np.array, path_to_save: str):
+    """
+    Сохранить изображение с графиками гипнограмм
+
+    :param stage_values: истинные значения стадия
+    :param predicted_stages: спрогнозированные стадии
+    :param path_to_save: путь для сохранения изображения
+    """
     figure, axis = plt.subplots(2, figsize=(12, 10))
     figure.tight_layout(pad=2, h_pad=5)
 
@@ -32,7 +46,7 @@ def save_comparing_plot(stage_values: np.array, predicted_stages: np.array, path
 
     values_list = [stage_values, predicted_stages]
     colors = ['tab:green', 'tab:blue']
-    titles = ['Исходные стадии', 'Предсказанные стадии']
+    titles = ['Исходные стадии', 'Спрогнозированные стадии']
 
     for ax, values, color, title in zip(axis, values_list, colors, titles):
         ax.plot(x, values, color=mcolors.TABLEAU_COLORS[color])
