@@ -19,7 +19,7 @@ from common.npz_parameters import *
 from common.edf_parameters import *
 
 H5_EXTENSION = '.h5'
-DEFAULT_FILE_NAME = '(0_8__0_87)_1'
+DEFAULT_FILE_NAME = '(0_8__0_87)'
 
 DEFAULT_MODEL_FILE_PATH = path.join(pardir, 'models', DEFAULT_FILE_NAME + H5_EXTENSION)
 DEFAULT_REPORT_DIR_PATH = path.join(pardir, 'reports', DEFAULT_FILE_NAME)
@@ -44,7 +44,7 @@ def parse_arguments():
     parser.add_argument('--model_file_path', type=str, default=DEFAULT_MODEL_FILE_PATH,
                         help='Путь к файлу модели')
     parser.add_argument('--report_dir_path', type=str, default=DEFAULT_REPORT_DIR_PATH,
-                        help='Путь к файлу с отчетом по классификации')
+                        help='Путь к директории отчетов по классификации')
     parser.add_argument('--plot_dir_path', type=str, default=DEFAULT_PLOT_DIR_PATH,
                         help='Путь к директории изображений графиков')
     parser.add_argument('--do_fit', type=bool, default=False,
