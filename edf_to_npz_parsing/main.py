@@ -1,14 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from os import path
 from mne.io import read_raw_edf
 from dataclasses import dataclass
 
 from argparse import ArgumentParser
 
 from edf_readers import EDFHeaderReader, SleepStageEDFReader, EDFData
-from common.file_utils import *
+from common.utils import *
 from common.edf_parameters import *
 from common.npz_parameters import *
 

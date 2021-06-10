@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 
 from os import path, pardir
@@ -11,18 +13,16 @@ from argparse import ArgumentParser
 from tensorflow.python.keras.models import Model
 
 from model import ModelCNN, ModelCallbacks
-from statistics import save_classification_report, save_comparing_plot
-from common.file_utils import *
+from statistics import save_plots_and_reports
+from common.utils import *
 from common.npz_parameters import *
 from common.edf_parameters import *
 
 H5_EXTENSION = '.h5'
-TXT_EXTENSION = '.txt'
-PNG_EXTENSION = '.png'
-DEFAULT_FILE_NAME = '(0_8__0_87)'
+DEFAULT_FILE_NAME = '(0_8__0_87)_1'
 
 DEFAULT_MODEL_FILE_PATH = path.join(pardir, 'models', DEFAULT_FILE_NAME + H5_EXTENSION)
-DEFAULT_REPORT_FILE_PATH = path.join(pardir, 'reports', DEFAULT_FILE_NAME + TXT_EXTENSION)
+DEFAULT_REPORT_DIR_PATH = path.join(pardir, 'reports', DEFAULT_FILE_NAME)
 DEFAULT_PLOT_DIR_PATH = path.join(pardir, 'plots', DEFAULT_FILE_NAME)
 
 WINDOW_SIZE = 100
@@ -33,7 +33,7 @@ def parse_arguments():
     Получить входные аргументы программы:
         - (--input_directory) путь к директории с исходными данными
         - (--model_file_path) путь к файлу модели сверточной нейронной сети
-        - (--report_file_path) путь к файлу с отчетом по классификации
+        - (--report_dir_path) путь к директории отчетов по классификации
         - (--plot_dir_path) путь к директории изображений графиков
         - (--do_fit) параметр, определяющий, требуется ли обучение, или только загрузка весов из файла
     """
@@ -43,7 +43,7 @@ def parse_arguments():
                         help='Путь к файлам npz')
     parser.add_argument('--model_file_path', type=str, default=DEFAULT_MODEL_FILE_PATH,
                         help='Путь к файлу модели')
-    parser.add_argument('--report_file_path', type=str, default=DEFAULT_REPORT_FILE_PATH,
+    parser.add_argument('--report_dir_path', type=str, default=DEFAULT_REPORT_DIR_PATH,
                         help='Путь к файлу с отчетом по классификации')
     parser.add_argument('--plot_dir_path', type=str, default=DEFAULT_PLOT_DIR_PATH,
                         help='Путь к директории изображений графиков')
@@ -75,7 +75,7 @@ def load_npz_files(npz_paths: List[str]) -> dict:
     :param npz_paths: список путей файлов npz
     :return: словарь из загруженных файлов
     """
-    return {npz_path: np.load(npz_path) for npz_path in npz_paths}
+    return {get_file_name_from_path(npz_path): np.load(npz_path) for npz_path in npz_paths}
 
 
 def rescale_and_clip_array(array: np.array, scale: int = 0.05):
@@ -121,17 +121,6 @@ def data_to_generator(data: dict, count: int = 10, window_size: int = WINDOW_SIZ
             yield raw_values, stage_values
 
 
-def split_into_chunks(data: Sized, chunk_size: int) -> list:
-    """
-    Разделить данные на равные блоки
-
-    :param data: данные, которые необходимо поделить
-    :param chunk_size: размер блока
-    :return: список из разделенных на блоки данных
-    """
-    return [data[idx:idx + chunk_size] for idx in range(0, len(data), chunk_size)]
-
-
 def prepare_raw_values_for_model(array: np.array):
     """
     Подготовить массив к обработке моделью:
@@ -163,12 +152,13 @@ def convert_array_to_1d_list(array: np.array) -> list:
 
 @dataclass
 class StagePredictionData:
+    data_key: str
     raw_values: List[float]
     stage_values: List[int]
     predicted_stages: List[int]
 
 
-def predict_stages(model: Model, test_data: dict) -> StagePredictionData:
+def predict_stages(model: Model, test_data: dict) -> List[StagePredictionData]:
     """
     Предсказать стадии на основе тестовых данных
 
@@ -176,7 +166,7 @@ def predict_stages(model: Model, test_data: dict) -> StagePredictionData:
     :param test_data: тестовые данные, на основе которых делается предсказание
     :return: список верных данных и список соответствующих предсказанных данных
     """
-    raw_values_1d, stage_values_1d, predicted_stages = [], [], []
+    prediction_data = []
 
     for test_data_key in progressbar(test_data):
         raw_values = test_data[test_data_key][RAW_VALUES_KEY]
@@ -186,32 +176,40 @@ def predict_stages(model: Model, test_data: dict) -> StagePredictionData:
 
         raw_values = prepare_raw_values_for_model(raw_values)
 
-        raw_values_1d += convert_array_to_1d_list(raw_values)
-        stage_values_1d += convert_array_to_1d_list(stage_values)
-        predicted_stages += convert_array_to_1d_list(model.predict(raw_values).argmax(axis=-1))
+        prediction_data.append(StagePredictionData(
+            data_key=test_data_key,
+            raw_values=convert_array_to_1d_list(raw_values),
+            stage_values=convert_array_to_1d_list(stage_values),
+            predicted_stages=convert_array_to_1d_list(model.predict(raw_values).argmax(axis=-1))
+        ))
 
-    return StagePredictionData(raw_values_1d, stage_values_1d, predicted_stages)
+    return prediction_data
 
 
 def main():
     args = parse_arguments()
 
+    create_directory(os.path.dirname(args.model_file_path))
+    create_directory(args.report_dir_path)
+    create_directory(args.plot_dir_path)
+
     # получить пути всех файлов данных и разделить их на данные для обучения, тестирования и валидации
     npz_files = get_files_in_directory(args.input_directory, NPZ_FILE_PATTERN)
-    train_files, test_files, validation_files = train_test_validation_split(npz_files)
-
-    # загрузить данные из файлов
-    train_data, test_data, validation_data = (
-        load_npz_files(train_files),
-        load_npz_files(test_files),
-        load_npz_files(validation_files)
-    )
 
     # создать экземпляр модели сверточной нейронной сети
     model = ModelCNN(STAGES_TYPES_NUMBER).generate_cnn_model()
 
-    # обучить модель, если передан соответствующий параметр
     if args.do_fit:
+        train_files, test_files, validation_files = train_test_validation_split(npz_files)
+
+        # загрузить данные из файлов
+        train_data, test_data, validation_data = (
+            load_npz_files(train_files),
+            load_npz_files(test_files),
+            load_npz_files(validation_files)
+        )
+
+    # обучить модель, если передан соответствующий параметр
         model.fit(
             data_to_generator(train_data),
             validation_data=data_to_generator(validation_data),
@@ -221,6 +219,9 @@ def main():
             validation_steps=300,
             callbacks=ModelCallbacks(args.model_file_path).generate_model_callbacks()
         )
+    else:
+        test_data = load_npz_files(npz_files)
+
     # загрузить модель из файла
     model.load_weights(args.model_file_path)
 
@@ -228,17 +229,28 @@ def main():
     prediction = predict_stages(model, test_data)
 
     # оценить предсказание
-    save_classification_report(
-        stage_values=prediction.stage_values,
-        predicted_stages=prediction.predicted_stages,
-        path_to_save=args.report_file_path)
+    stage_values_all, predicted_stages_all = [], []
 
-    for idx, chunk in enumerate(split_into_chunks(range(len(prediction.stage_values)), chunk_size=700)):
-        save_comparing_plot(
-            stage_values=prediction.stage_values[chunk.start:chunk.stop],
-            predicted_stages=prediction.predicted_stages[chunk.start:chunk.stop],
-            path_to_save=f'{args.plot_dir_path}_[{idx}]{PNG_EXTENSION}'
+    for item in prediction:
+        stage_values_all += item.stage_values
+        predicted_stages_all += item.predicted_stages
+
+        save_plots_and_reports(
+            stage_values=item.stage_values,
+            predicted_stages=item.predicted_stages,
+            file_name=item.data_key,
+            plot_dir_path=args.plot_dir_path,
+            report_dir_path=args.report_dir_path
         )
+
+    # суммарно
+    save_plots_and_reports(
+        stage_values=stage_values_all,
+        predicted_stages=predicted_stages_all,
+        file_name='summary',
+        plot_dir_path=args.plot_dir_path,
+        report_dir_path=args.report_dir_path
+    )
 
 
 if __name__ == '__main__':

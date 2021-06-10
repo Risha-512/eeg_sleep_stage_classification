@@ -1,7 +1,20 @@
 from os import path, makedirs
 from glob import glob
-from shutil import rmtree
-from typing import List, Any
+from typing import List, Sized
+
+TXT_EXTENSION = '.txt'
+PNG_EXTENSION = '.png'
+
+
+def split_into_chunks(data: Sized, chunk_size: int) -> list:
+    """
+    Разделить данные на равные блоки
+
+    :param data: данные, которые необходимо поделить
+    :param chunk_size: размер блока
+    :return: список из разделенных на блоки данных
+    """
+    return [data[idx:idx + chunk_size] for idx in range(0, len(data), chunk_size)]
 
 
 def get_files_in_directory(directory_path: str, file_pattern: str) -> List[str]:
@@ -31,13 +44,12 @@ def get_file_name_from_path(file_path: str, with_extension: bool = False) -> str
 
 def create_directory(directory_path: str):
     """
-    Создать директорию (очистить, если существует)
+    Создать директорию
 
     :param directory_path: путь директории
     """
-    if path.exists(directory_path):
-        rmtree(directory_path)
-    makedirs(directory_path)
+    if not path.isdir(directory_path):
+        makedirs(directory_path)
 
 
 def write_to_text_file(file_path: str, data: List[str]):
