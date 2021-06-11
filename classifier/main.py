@@ -2,7 +2,6 @@ import os.path
 
 import numpy as np
 
-from os import path, pardir
 from random import choice
 from dataclasses import dataclass
 from progressbar import progressbar
@@ -152,7 +151,7 @@ def convert_array_to_1d_list(array: np.array) -> list:
 
 @dataclass
 class StagePredictionData:
-    data_key: str
+    key: str
     raw_values: List[float]
     stage_values: List[int]
     predicted_stages: List[int]
@@ -177,7 +176,7 @@ def predict_stages(model: Model, test_data: dict) -> List[StagePredictionData]:
         raw_values = prepare_raw_values_for_model(raw_values)
 
         prediction_data.append(StagePredictionData(
-            data_key=test_data_key,
+            key=test_data_key,
             raw_values=convert_array_to_1d_list(raw_values),
             stage_values=convert_array_to_1d_list(stage_values),
             predicted_stages=convert_array_to_1d_list(model.predict(raw_values).argmax(axis=-1))
@@ -209,7 +208,7 @@ def main():
             load_npz_files(validation_files)
         )
 
-    # обучить модель, если передан соответствующий параметр
+        # обучить модель
         model.fit(
             data_to_generator(train_data),
             validation_data=data_to_generator(validation_data),
@@ -238,7 +237,7 @@ def main():
         save_plots_and_reports(
             stage_values=item.stage_values,
             predicted_stages=item.predicted_stages,
-            file_name=item.data_key,
+            file_name=item.key,
             plot_dir_path=args.plot_dir_path,
             report_dir_path=args.report_dir_path
         )

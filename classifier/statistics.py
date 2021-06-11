@@ -7,6 +7,8 @@ from sklearn.metrics import accuracy_score, f1_score, jaccard_score, classificat
 from common.edf_parameters import STAGE_NAMES
 from common.utils import *
 
+PLOT_X_MAX = 700
+
 
 def save_classification_report(stage_values: np.array, predicted_stages: np.array, path_to_save: str):
     """
@@ -58,6 +60,8 @@ def save_comparing_plot(stage_values: np.array, predicted_stages: np.array, path
         ax.grid()
 
     plt.savefig(path_to_save)
+    figure.clear()
+    plt.close(figure)
 
 
 def save_plots_and_reports(stage_values: np.array,
@@ -74,7 +78,7 @@ def save_plots_and_reports(stage_values: np.array,
     :param plot_dir_path: путь директории для графиков
     :param report_dir_path: путь директории для отчета
     """
-    for idx, chunk in enumerate(split_into_chunks(range(len(stage_values)), chunk_size=700)):
+    for idx, chunk in enumerate(split_into_chunks(range(len(stage_values)), chunk_size=PLOT_X_MAX)):
         save_comparing_plot(
             stage_values=stage_values[chunk.start:chunk.stop],
             predicted_stages=predicted_stages[chunk.start:chunk.stop],
