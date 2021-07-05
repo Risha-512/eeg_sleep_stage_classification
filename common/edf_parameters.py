@@ -2,14 +2,14 @@ from os import path, pardir
 
 EDF_DIRECTORY_PATH = path.join(pardir, 'data_edf')
 
-# параметры файлов
+# files parameters
 HYPNOGRAM_FILE_PATTERN = '*Hypnogram.edf'
 PSG_FILE_PATTERN = '*PSG.edf'
 PSG_FILE_EXTENSION = '-PSG.edf'
 
 EDF_ENCODING = 'ISO-8859-1'
 
-# параметры данных
+# data parameters
 CHANNEL_NAME = 'EEG Fpz-Cz'
 SAMPLING_RATE_INFO_KEY = 'sfreq'
 

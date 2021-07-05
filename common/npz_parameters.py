@@ -2,11 +2,11 @@ from os import path, pardir
 
 NPZ_DIRECTORY_PATH = path.join(pardir, 'data_npz')
 
-# параметры файлов
+# files parameters
 NPZ_FILE_PATTERN = '*.npz'
 NPZ_FILE_EXTENSION = '.npz'
 
-# параметры данных
+# data parameters
 RAW_VALUES_KEY = 'raw_values'
 STAGE_VALUES_KEY = 'stage_values'
 SAMPLING_RATE_KEY = 'sampling_rate'

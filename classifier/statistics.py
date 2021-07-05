@@ -11,13 +11,6 @@ PLOT_X_MAX = 700
 
 
 def save_classification_report(stage_values: np.array, predicted_stages: np.array, path_to_save: str):
-    """
-    Сохранить отчет о классификации в файл
-
-    :param stage_values: истинные значения стадий
-    :param predicted_stages: предсказанные стадии
-    :param path_to_save: путь для сохранения отчета
-    """
     f1 = f1_score(stage_values, predicted_stages, average='macro')
     accuracy = accuracy_score(stage_values, predicted_stages)
     jaccard = jaccard_score(stage_values, predicted_stages, average='macro')
@@ -32,13 +25,6 @@ def save_classification_report(stage_values: np.array, predicted_stages: np.arra
 
 
 def save_comparing_plot(stage_values: np.array, predicted_stages: np.array, path_to_save: str):
-    """
-    Сохранить изображение с графиками гипнограмм
-
-    :param stage_values: истинные значения стадий
-    :param predicted_stages: предсказанные стадии
-    :param path_to_save: путь для сохранения изображения
-    """
     figure, axis = plt.subplots(2, figsize=(12, 10))
     figure.tight_layout(pad=2, h_pad=5)
 
@@ -69,15 +55,6 @@ def save_plots_and_reports(stage_values: np.array,
                            file_name: str,
                            plot_dir_path: str,
                            report_dir_path: str):
-    """
-    Сохранить отчет классификации и изображения гипнограмм
-
-    :param stage_values: истинные значения стадий
-    :param predicted_stages: предсказанные стадии
-    :param file_name: имя файла
-    :param plot_dir_path: путь директории для графиков
-    :param report_dir_path: путь директории для отчета
-    """
     for idx, chunk in enumerate(split_into_chunks(range(len(stage_values)), chunk_size=PLOT_X_MAX)):
         save_comparing_plot(
             stage_values=stage_values[chunk.start:chunk.stop],

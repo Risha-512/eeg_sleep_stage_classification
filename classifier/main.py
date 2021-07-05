@@ -28,39 +28,22 @@ WINDOW_SIZE = 100
 
 
 def parse_arguments():
-    """
-    Получить входные аргументы программы:
-        - (--input_directory) путь к директории с исходными данными
-        - (--model_file_path) путь к файлу модели сверточной нейронной сети
-        - (--report_dir_path) путь к директории отчетов по классификации
-        - (--plot_dir_path) путь к директории изображений графиков
-        - (--do_fit) параметр, определяющий, требуется ли обучение, или только загрузка весов из файла
-    """
     parser = ArgumentParser()
 
     parser.add_argument('--input_directory', type=str, default=NPZ_DIRECTORY_PATH,
-                        help='Путь к файлам npz')
+                        help='Path to npz files')
     parser.add_argument('--model_file_path', type=str, default=DEFAULT_MODEL_FILE_PATH,
-                        help='Путь к файлу модели')
+                        help='Path to model file')
     parser.add_argument('--report_dir_path', type=str, default=DEFAULT_REPORT_DIR_PATH,
-                        help='Путь к директории отчетов по классификации')
+                        help='Path to directory for reports')
     parser.add_argument('--plot_dir_path', type=str, default=DEFAULT_PLOT_DIR_PATH,
-                        help='Путь к директории изображений графиков')
+                        help='Path to directory for plots')
     parser.add_argument('--do_fit', type=bool, default=False,
-                        help='True, если требуется обучение, иначе только загрузка модели из файла')
+                        help='set True, if needs to fit model, False load model from file')
     return parser.parse_args()
 
 
 def train_test_validation_split(data: Sized) -> (Sized, Sized, Sized):
-    """
-    Разделить список данных на три списка:
-        - список данных для обучения
-        - список данных для тестирования
-        - список данных для валиадции (проверки)
-
-    :param data: список данных, который нужно разделить
-    :return: список данных для обучения, список данных для тестирования, список данных для валидации
-    """
     train_val, test = train_test_split(data, test_size=0.15, random_state=1338)
     train, validation = train_test_split(train_val, test_size=0.1, random_state=1337)
 
@@ -68,23 +51,10 @@ def train_test_validation_split(data: Sized) -> (Sized, Sized, Sized):
 
 
 def load_npz_files(npz_paths: List[str]) -> dict:
-    """
-    Загрузить все файлы npz из списка
-
-    :param npz_paths: список путей файлов npz
-    :return: словарь из загруженных файлов
-    """
     return {get_file_name_from_path(npz_path): np.load(npz_path) for npz_path in npz_paths}
 
 
 def rescale_and_clip_array(array: np.array, scale: int = 0.05):
-    """
-    Масштабировать значения массива и убрать излишние
-
-    :param array: массив для масштабирования
-    :param scale: масштаб
-    :return: масштабированный массив
-    """
     array = array * scale
     array = np.clip(array, -scale * 100, scale * 100)
     return array
@@ -92,12 +62,12 @@ def rescale_and_clip_array(array: np.array, scale: int = 0.05):
 
 def data_to_generator(data: dict, count: int = 10, window_size: int = WINDOW_SIZE) -> Generator:
     """
-    Преобразовать данные в генератор из значений ЭЭГ и соответствующих стадий
+    Transform data to generator of raw eeg and stages
 
-    :param data: словарь данных для преобразования
-    :param count: количество итераций генератора
-    :param window_size: размер блока данных
-    :return: значения ЭЭГ и соответствующие стадии
+    :param data: dictionary of date to transform
+    :param count: generator iterations quantity
+    :param window_size: size of data block (window)
+    :return: raw eeg and stages
     """
     while True:
         chosen_data = data[choice(list(data.keys()))]
@@ -110,10 +80,10 @@ def data_to_generator(data: dict, count: int = 10, window_size: int = WINDOW_SIZ
             raw_values = chosen_data[RAW_VALUES_KEY][idx:idx + window_size]
             stage_values = chosen_data[STAGE_VALUES_KEY][idx:idx + window_size]
 
-            # увеличить размерность вектора и масштабировать его значения
+            # increase the dimension of the vector and scale its values
             raw_values = prepare_raw_values_for_model(raw_values)
 
-            # транспонировать вектор и увеличить размерность на 1
+            # transpose the vector and increase the dimension by 1
             stage_values = np.expand_dims(stage_values, -1)
             stage_values = np.expand_dims(stage_values, 0)
 
@@ -122,17 +92,17 @@ def data_to_generator(data: dict, count: int = 10, window_size: int = WINDOW_SIZ
 
 def prepare_raw_values_for_model(array: np.array):
     """
-    Подготовить массив к обработке моделью:
-        - изменить размерность
-        - масштабировать
-        - исключить лишние значения
+    Prepare the array for processing by the model:
+         - change dimension
+         - to scale
+         - exclude unnecessary values
 
-    :param array: изменяемый массив
-    :return: измененный массив
+    :param array: array to modify
+    :return: modified array
     """
     assert len(array.shape) <= 4
 
-    # увеличивать размерность на 1, пока не достигнет 4
+    # increase dimension by 1 until it reaches 4
     while len(array.shape) != 4:
         array = np.expand_dims(array, 0)
 
@@ -140,12 +110,6 @@ def prepare_raw_values_for_model(array: np.array):
 
 
 def convert_array_to_1d_list(array: np.array) -> list:
-    """
-    Преобразовать numpy массив в одномерный список
-
-    :param array: преобразуемый numpy массив
-    :return: список, полученный из входного массива
-    """
     return array.ravel().tolist()
 
 
@@ -158,13 +122,6 @@ class StagePredictionData:
 
 
 def predict_stages(model: Model, test_data: dict) -> List[StagePredictionData]:
-    """
-    Предсказать стадии на основе тестовых данных
-
-    :param model: модель, выполняющая предсказание
-    :param test_data: тестовые данные, на основе которых делается предсказание
-    :return: список верных данных и список соответствующих предсказанных данных
-    """
     prediction_data = []
 
     for test_data_key in progressbar(test_data):
@@ -175,12 +132,14 @@ def predict_stages(model: Model, test_data: dict) -> List[StagePredictionData]:
 
         raw_values = prepare_raw_values_for_model(raw_values)
 
-        prediction_data.append(StagePredictionData(
-            key=test_data_key,
-            raw_values=convert_array_to_1d_list(raw_values),
-            stage_values=convert_array_to_1d_list(stage_values),
-            predicted_stages=convert_array_to_1d_list(model.predict(raw_values).argmax(axis=-1))
-        ))
+        prediction_data.append(
+            StagePredictionData(
+                key=test_data_key,
+                raw_values=convert_array_to_1d_list(raw_values),
+                stage_values=convert_array_to_1d_list(stage_values),
+                predicted_stages=convert_array_to_1d_list(model.predict(raw_values).argmax(axis=-1))
+            )
+        )
 
     return prediction_data
 
@@ -192,23 +151,24 @@ def main():
     create_directory(args.report_dir_path)
     create_directory(args.plot_dir_path)
 
-    # получить пути всех файлов данных и разделить их на данные для обучения, тестирования и валидации
+    # get the paths of all data files
     npz_files = get_files_in_directory(args.input_directory, NPZ_FILE_PATTERN)
 
-    # создать экземпляр модели сверточной нейронной сети
+    # create CNN model
     model = ModelCNN(STAGES_TYPES_NUMBER).generate_cnn_model()
 
     if args.do_fit:
+        # split data into train, test and validation data
         train_files, test_files, validation_files = train_test_validation_split(npz_files)
 
-        # загрузить данные из файлов
+        # load data from files
         train_data, test_data, validation_data = (
             load_npz_files(train_files),
             load_npz_files(test_files),
             load_npz_files(validation_files)
         )
 
-        # обучить модель
+        # train model
         model.fit(
             data_to_generator(train_data),
             validation_data=data_to_generator(validation_data),
@@ -221,13 +181,13 @@ def main():
     else:
         test_data = load_npz_files(npz_files)
 
-    # загрузить модель из файла
+    # load model from file
     model.load_weights(args.model_file_path)
 
-    # предсказать стадии на основе тестовых данных
+    # predict stages for test data
     prediction = predict_stages(model, test_data)
 
-    # оценить предсказание
+    # estimate prediction results
     stage_values_all, predicted_stages_all = [], []
 
     for item in prediction:
@@ -242,7 +202,7 @@ def main():
             report_dir_path=args.report_dir_path
         )
 
-    # суммарно
+    # summarize results
     save_plots_and_reports(
         stage_values=stage_values_all,
         predicted_stages=predicted_stages_all,
