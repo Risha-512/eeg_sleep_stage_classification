@@ -1,4 +1,4 @@
-# *EEG sleep stage calssification*
+# *EEG sleep stage classification*
 
 ## Sources
  - [CNN Model](https://towardsdatascience.com/sleep-stage-classification-from-single-channel-eeg-using-convolutional-neural-networks-5c710d92d38e)
